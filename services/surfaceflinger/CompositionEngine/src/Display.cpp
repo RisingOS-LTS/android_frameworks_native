@@ -373,12 +373,26 @@ compositionengine::Output::FrameFences Display::presentAndGetFrameFences() {
 
     if (isPowerHintSessionEnabled()) {
         if (!getCompositionEngine().getHwComposer().getComposer()->isSupported(
+<<<<<<< HEAD
                     Hwc2::Composer::OptionalFeature::ExpectedPresentTime)) {
+=======
+                    Hwc2::Composer::OptionalFeature::ExpectedPresentTime) &&
+            getState().previousPresentFence->getSignalTime() != Fence::SIGNAL_TIME_PENDING) {
+>>>>>>> 2c24b4a46d (Merge tag 'android-security-13.0.0_r25' into staging/lineage-20.0_android-security-13.0.0_r25)
             mPowerAdvisor->setHwcPresentDelayedTime(mId, getState().earliestPresentTime);
         }
     }
 
+<<<<<<< HEAD
     hwc.presentAndGetReleaseFences(*halDisplayIdOpt, getState().earliestPresentTime);
+
+    if (isPowerHintSessionEnabled()) {
+        mPowerAdvisor->setHwcPresentTiming(mId, startTime, systemTime());
+    }
+=======
+    hwc.presentAndGetReleaseFences(*halDisplayIdOpt, getState().earliestPresentTime,
+                                   getState().previousPresentFence);
+>>>>>>> 2c24b4a46d (Merge tag 'android-security-13.0.0_r25' into staging/lineage-20.0_android-security-13.0.0_r25)
 
     if (isPowerHintSessionEnabled()) {
         mPowerAdvisor->setHwcPresentTiming(mId, startTime, systemTime());

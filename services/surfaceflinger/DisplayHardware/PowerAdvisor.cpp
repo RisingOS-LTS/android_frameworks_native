@@ -326,9 +326,15 @@ void PowerAdvisor::setFrameDelay(nsecs_t frameDelayDuration) {
 }
 
 void PowerAdvisor::setHwcPresentDelayedTime(
+<<<<<<< HEAD
         DisplayId displayId, std::optional<std::chrono::steady_clock::time_point> earliestFrameStartTime) {
     mDisplayTimingData[displayId].hwcPresentDelayedTime =
             (*earliestFrameStartTime - std::chrono::steady_clock::now()).count() + systemTime();
+=======
+        DisplayId displayId, std::chrono::steady_clock::time_point earliestFrameStartTime) {
+    mDisplayTimingData[displayId].hwcPresentDelayedTime =
+            (earliestFrameStartTime - std::chrono::steady_clock::now()).count() + systemTime();
+>>>>>>> 2c24b4a46d (Merge tag 'android-security-13.0.0_r25' into staging/lineage-20.0_android-security-13.0.0_r25)
 }
 
 void PowerAdvisor::setCommitStart(nsecs_t commitStartTime) {

@@ -273,6 +273,7 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         }
     }
 
+<<<<<<< HEAD
     if (!changes || (changes & InputReaderConfiguration::CHANGE_FORCE_MOUSE_AS_TOUCH) ||
         configurePointerCapture) {
         if (mParameters.mode == Parameters::Mode::POINTER_RELATIVE) {
@@ -285,6 +286,8 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         }
     }
 
+=======
+>>>>>>> 2c24b4a46d (Merge tag 'android-security-13.0.0_r25' into staging/lineage-20.0_android-security-13.0.0_r25)
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO) ||
         configurePointerCapture) {
         const bool isPointer = mParameters.mode == Parameters::Mode::POINTER;
@@ -315,6 +318,7 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
             mParameters.mode != Parameters::Mode::POINTER_RELATIVE) {
             if (auto viewport = config->getDisplayViewportById(*mDisplayId); viewport) {
                 mOrientation = getInverseRotation(viewport->orientation);
+<<<<<<< HEAD
             }
         }
 
@@ -324,6 +328,8 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
                 mAbsYScale = float(viewport->physicalBottom - viewport->physicalTop) / mCursorPositionAccumulator.getSpanAbsY();
                 mAbsXPrecision = 1.0f / mAbsXScale;
                 mAbsYPrecision = 1.0f / mAbsYScale;
+=======
+>>>>>>> 2c24b4a46d (Merge tag 'android-security-13.0.0_r25' into staging/lineage-20.0_android-security-13.0.0_r25)
             }
         }
 

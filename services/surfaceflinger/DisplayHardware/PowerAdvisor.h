@@ -81,7 +81,11 @@ public:
     virtual void setSkippedValidate(DisplayId displayId, bool skipped) = 0;
     // Reports when a hwc present is delayed, and the time that it will resume
     virtual void setHwcPresentDelayedTime(
+<<<<<<< HEAD
             DisplayId displayId, std::optional<std::chrono::steady_clock::time_point> earliestFrameStartTime) = 0;
+=======
+            DisplayId displayId, std::chrono::steady_clock::time_point earliestFrameStartTime) = 0;
+>>>>>>> 2c24b4a46d (Merge tag 'android-security-13.0.0_r25' into staging/lineage-20.0_android-security-13.0.0_r25)
     // Reports the start delay for SurfaceFlinger this frame
     virtual void setFrameDelay(nsecs_t frameDelayDuration) = 0;
     // Reports the SurfaceFlinger commit start time this frame
@@ -145,7 +149,11 @@ public:
     void setSfPresentTiming(nsecs_t presentFenceTime, nsecs_t presentEndTime) override;
     void setHwcPresentDelayedTime(
             DisplayId displayId,
+<<<<<<< HEAD
             std::optional<std::chrono::steady_clock::time_point> earliestFrameStartTime) override;
+=======
+            std::chrono::steady_clock::time_point earliestFrameStartTime) override;
+>>>>>>> 2c24b4a46d (Merge tag 'android-security-13.0.0_r25' into staging/lineage-20.0_android-security-13.0.0_r25)
 
     void setFrameDelay(nsecs_t frameDelayDuration) override;
     void setCommitStart(nsecs_t commitStartTime) override;

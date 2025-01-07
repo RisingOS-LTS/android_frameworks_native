@@ -49,11 +49,19 @@ uint64_t getValid10UsageBits() {
             bits = bits | bit;
         }
 
+<<<<<<< HEAD
 #ifdef ADDNL_GRALLOC_10_USAGE_BITS
         uint64_t addnl_bits = static_cast<uint64_t>(ADDNL_GRALLOC_10_USAGE_BITS);
         ALOGI("Adding additional valid usage bits: 0x%" PRIx64, addnl_bits);
         bits = bits | addnl_bits;
 #endif
+=======
+        if (ADDNL_GRALLOC_10_USAGE_BITS) {
+            uint64_t addnl_bits = static_cast<uint64_t>(ADDNL_GRALLOC_10_USAGE_BITS);
+            ALOGI("Adding additional valid usage bits: 0x%" PRIx64, addnl_bits);
+            bits = bits | addnl_bits;
+        }
+>>>>>>> 2c24b4a46d (Merge tag 'android-security-13.0.0_r25' into staging/lineage-20.0_android-security-13.0.0_r25)
 
         return bits;
     }();
