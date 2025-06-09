@@ -34,6 +34,9 @@
 
 #include <private/gui/ComposerService.h>
 
+#include <binder/IServiceManager.h>
+#include <pthread.h>
+#include <regex>
 #include <chrono>
 
 using namespace std::chrono_literals;
@@ -61,6 +64,45 @@ namespace android {
 #define BBQ_TRACE(x, ...)                                                                  \
     ATRACE_FORMAT("%s - %s(f:%u,a:%u)" x, __FUNCTION__, mName.c_str(), mNumFrameAvailable, \
                   mNumAcquired, ##__VA_ARGS__)
+
+static bool sIsGame = false;
+static std::string sLayerName = "";
+static pthread_once_t sCheckAppTypeOnce = PTHREAD_ONCE_INIT;
+static void initAppType() {
+    sp<IServiceManager> sm = defaultServiceManager();
+    sp<IBinder> perfservice = sm->checkService(String16("vendor.perfservice"));
+    if (perfservice == nullptr) {
+        ALOGE("Cannot find perfservice");
+        return;
+    }
+    String16 ifName = perfservice->getInterfaceDescriptor();
+    if (ifName.size() > 0) {
+        const std::regex re("(?:SurfaceView\\[)([^/]+).*");
+        std::smatch match;
+        if (!std::regex_match(sLayerName, match, re)) {
+            return;
+        }
+        String16 pkgName = String16(match[1].str().c_str());
+
+        Parcel data, reply;
+        int GAME_TYPE = 2;
+        int VENDOR_FEEDBACK_WORKLOAD_TYPE = 0x00001601;
+        int PERF_GET_FEEDBACK = IBinder::FIRST_CALL_TRANSACTION + 7;
+        int array[0];
+        data.markForBinder(perfservice);
+        data.writeInterfaceToken(ifName);
+        data.writeInt32(VENDOR_FEEDBACK_WORKLOAD_TYPE);
+        data.writeString16(pkgName);
+        data.writeInt32(getpid());
+        data.writeInt32Array(0, array);
+        perfservice->transact(PERF_GET_FEEDBACK, data, &reply);
+        reply.readExceptionCode();
+        int type = reply.readInt32();
+        if (type == GAME_TYPE) {
+            sIsGame = true;
+        }
+    }
+}
 
 void BLASTBufferItemConsumer::onDisconnect() {
     Mutex::Autolock lock(mMutex);
@@ -140,6 +182,10 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, bool updateDestinati
         mTransactionReadyCallback(nullptr),
         mSyncTransaction(nullptr),
         mUpdateDestinationFrame(updateDestinationFrame) {
+    if (name.find("SurfaceView") != std::string::npos) {
+        sLayerName = name;
+        pthread_once(&sCheckAppTypeOnce, initAppType);
+    }
     createBufferQueue(&mProducer, &mConsumer);
     // since the adapter is in the client process, set dequeue timeout
     // explicitly so that dequeueBuffer will block
@@ -429,8 +475,8 @@ void BLASTBufferQueue::releaseBufferCallbackLocked(
         mCurrentMaxAcquiredBufferCount = *currentMaxAcquiredBufferCount;
     }
 
-    const auto numPendingBuffersToHold =
-            isEGL ? std::max(0u, mMaxAcquiredBuffers - mCurrentMaxAcquiredBufferCount) : 0;
+    const uint32_t numPendingBuffersToHold =
+            isEGL ? std::max(0, mMaxAcquiredBuffers - (int32_t)mCurrentMaxAcquiredBufferCount) : 0;
 
     auto rb = ReleasedBuffer{id, releaseFence};
     if (std::find(mPendingRelease.begin(), mPendingRelease.end(), rb) == mPendingRelease.end()) {
@@ -471,6 +517,7 @@ void BLASTBufferQueue::releaseBuffer(const ReleaseCallbackId& callbackId,
         return;
     }
     mNumAcquired--;
+    mNumUndequeued++;
     BBQ_TRACE("frame=%" PRIu64, callbackId.framenumber);
     BQA_LOGV("released %s", callbackId.to_string().c_str());
     mBufferItemConsumer->releaseBuffer(it->second, releaseFence);
@@ -624,8 +671,12 @@ status_t BLASTBufferQueue::acquireNextBufferLocked(
 
     mergePendingTransactions(t, bufferItem.mFrameNumber);
     if (applyTransaction) {
-        // All transactions on our apply token are one-way. See comment on mAppliedLastTransaction
-        t->setApplyToken(mApplyToken).apply(false, true);
+        if (sIsGame) {
+            t->setApplyToken(mApplyToken).apply(false, false);
+        } else {
+            // All transactions on our apply token are one-way. See comment on mAppliedLastTransaction
+            t->setApplyToken(mApplyToken).apply(false, true);
+        }
         mAppliedLastTransaction = true;
         mLastAppliedFrameNumber = bufferItem.mFrameNumber;
     } else {
@@ -764,6 +815,7 @@ void BLASTBufferQueue::onFrameReplaced(const BufferItem& item) {
 void BLASTBufferQueue::onFrameDequeued(const uint64_t bufferId) {
     std::unique_lock _lock{mTimestampMutex};
     mDequeueTimestamps[bufferId] = systemTime();
+    mNumUndequeued--;
 };
 
 void BLASTBufferQueue::onFrameCancelled(const uint64_t bufferId) {

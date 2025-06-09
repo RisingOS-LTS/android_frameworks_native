@@ -54,6 +54,11 @@ public:
     virtual bool needsReleaseNotify() = 0;
 
     virtual void onBuffersDiscarded(const std::vector<sp<GraphicBuffer>>& buffers) = 0;
+
+    virtual void onBufferDetached(int /**slot**/) {
+        //default do nothing
+    }
+
 };
 
 /*
@@ -388,6 +393,11 @@ protected:
         }
 
         virtual void onBuffersDiscarded(const std::vector<int32_t>& slots);
+
+        virtual void onBufferDetached(int slot) {
+            mSurfaceListener->onBufferDetached(slot);
+        }
+
     private:
         wp<Surface> mParent;
         sp<SurfaceListener> mSurfaceListener;
@@ -461,6 +471,8 @@ protected:
     // mHdrMetadata is the HDR metadata that will be used for the next buffer
     // queue operation.  There is no HDR metadata by default.
     HdrMetadata mHdrMetadata;
+
+    uint32_t mHdrMetaIsSet{0};
 
     // mCrop is the crop rectangle that will be used for the next buffer
     // that gets queued. It is set by calling setCrop.

@@ -180,9 +180,24 @@ status_t Surface::getDisplayRefreshCycleDuration(nsecs_t* outRefreshDuration) {
     ATRACE_CALL();
 
     gui::DisplayStatInfo stats;
+    ui::DynamicDisplayInfo info;
+    ui::DisplayMode mode;
     binder::Status status = composerServiceAIDL()->getDisplayStats(nullptr, &stats);
     if (!status.isOk()) {
-        return status.transactionError();
+        const sp<IBinder> display = ComposerServiceAIDL::getInstance().getInternalDisplayToken();
+        if (display == nullptr) {
+            return NAME_NOT_FOUND;
+        }
+        if (status_t err = composerService()->getDynamicDisplayInfo(display, &info);
+            err != NO_ERROR) {
+            return err;
+        }
+        if (const auto activeMode = info.getActiveDisplayMode()) {
+            mode = *activeMode;
+        }
+
+        *outRefreshDuration = (1.0/mode.refreshRate * 1000000000); // in neno second
+        return NO_ERROR;
     }
 
     *outRefreshDuration = stats.vsyncPeriod;
@@ -792,11 +807,15 @@ int Surface::dequeueBuffers(std::vector<BatchBuffer>* buffers) {
         return result;
     }
 
-    std::vector<CancelBufferInput> cancelBufferInputs(numBufferRequested);
+    std::vector<CancelBufferInput> cancelBufferInputs;
+    cancelBufferInputs.reserve(numBufferRequested);
     std::vector<status_t> cancelBufferOutputs;
     for (size_t i = 0; i < numBufferRequested; i++) {
-        cancelBufferInputs[i].slot = dequeueOutput[i].slot;
-        cancelBufferInputs[i].fence = dequeueOutput[i].fence;
+        if (dequeueOutput[i].result >= 0) {
+            CancelBufferInput& input = cancelBufferInputs.emplace_back();
+            input.slot = dequeueOutput[i].slot;
+            input.fence = dequeueOutput[i].fence;
+        }
     }
 
     for (const auto& output : dequeueOutput) {
@@ -1107,9 +1126,12 @@ void Surface::applyGrallocMetadataLocked(
     ATRACE_CALL();
     auto& mapper = GraphicBufferMapper::get();
     mapper.setDataspace(buffer->handle, static_cast<ui::Dataspace>(queueBufferInput.dataSpace));
-    mapper.setSmpte2086(buffer->handle, queueBufferInput.getHdrMetadata().getSmpte2086());
-    mapper.setCta861_3(buffer->handle, queueBufferInput.getHdrMetadata().getCta8613());
-    mapper.setSmpte2094_40(buffer->handle, queueBufferInput.getHdrMetadata().getHdr10Plus());
+    if (mHdrMetaIsSet & HdrMetadata::SMPTE2086)
+        mapper.setSmpte2086(buffer->handle, queueBufferInput.getHdrMetadata().getSmpte2086());
+    if (mHdrMetaIsSet & HdrMetadata::CTA861_3)
+        mapper.setCta861_3(buffer->handle, queueBufferInput.getHdrMetadata().getCta8613());
+    if (mHdrMetaIsSet & HdrMetadata::HDR10PLUS)
+        mapper.setSmpte2094_40(buffer->handle, queueBufferInput.getHdrMetadata().getHdr10Plus());
 }
 
 void Surface::onBufferQueuedLocked(int slot, sp<Fence> fence,
@@ -1273,6 +1295,10 @@ void Surface::querySupportedTimestampsLocked() const {
 int Surface::query(int what, int* value) const {
     ATRACE_CALL();
     ALOGV("Surface::query");
+    if ((what == NATIVE_WINDOW_WIDTH) || (what == NATIVE_WINDOW_HEIGHT)) {
+        return mGraphicBufferProducer->query(what, value);
+    }
+
     { // scope for the lock
         Mutex::Autolock lock(mMutex);
         switch (what) {
@@ -1944,6 +1970,7 @@ int Surface::disconnect(int api, IGraphicBufferProducer::DisconnectMode mode) {
         mReqHeight = 0;
         mReqUsage = 0;
         mCrop.clear();
+        mDataSpace = Dataspace::UNKNOWN;
         mScalingMode = NATIVE_WINDOW_SCALING_MODE_FREEZE;
         mTransform = 0;
         mStickyTransform = 0;
@@ -2250,6 +2277,7 @@ int Surface::setBuffersDataSpace(Dataspace dataSpace)
 int Surface::setBuffersSmpte2086Metadata(const android_smpte2086_metadata* metadata) {
     ALOGV("Surface::setBuffersSmpte2086Metadata");
     Mutex::Autolock lock(mMutex);
+    mHdrMetaIsSet |= HdrMetadata::SMPTE2086;
     if (metadata) {
         mHdrMetadata.smpte2086 = *metadata;
         mHdrMetadata.validTypes |= HdrMetadata::SMPTE2086;
@@ -2262,6 +2290,7 @@ int Surface::setBuffersSmpte2086Metadata(const android_smpte2086_metadata* metad
 int Surface::setBuffersCta8613Metadata(const android_cta861_3_metadata* metadata) {
     ALOGV("Surface::setBuffersCta8613Metadata");
     Mutex::Autolock lock(mMutex);
+    mHdrMetaIsSet |= HdrMetadata::CTA861_3;
     if (metadata) {
         mHdrMetadata.cta8613 = *metadata;
         mHdrMetadata.validTypes |= HdrMetadata::CTA861_3;
@@ -2274,6 +2303,7 @@ int Surface::setBuffersCta8613Metadata(const android_cta861_3_metadata* metadata
 int Surface::setBuffersHdr10PlusMetadata(const size_t size, const uint8_t* metadata) {
     ALOGV("Surface::setBuffersBlobMetadata");
     Mutex::Autolock lock(mMutex);
+    mHdrMetaIsSet |= HdrMetadata::HDR10PLUS;
     if (size > 0) {
         mHdrMetadata.hdr10plus.assign(metadata, metadata + size);
         mHdrMetadata.validTypes |= HdrMetadata::HDR10PLUS;

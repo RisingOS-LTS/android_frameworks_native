@@ -922,6 +922,10 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
             if (!reply && !acquireResult) goto finish;
             break;
 
+        case BR_TRANSACTION_PENDING_FROZEN:
+            ALOGW("Sending oneway calls to frozen process.");
+            goto finish;
+
         case BR_DEAD_REPLY:
             err = DEAD_OBJECT;
             goto finish;
@@ -1307,6 +1311,13 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
             if ((tr.flags & TF_ONE_WAY) == 0) {
                 LOG_ONEWAY("Sending reply to %d!", mCallingPid);
                 if (error < NO_ERROR) reply.setError(error);
+
+                // b/238777741: clear buffer before we send the reply.
+                // Otherwise, there is a race where the client may
+                // receive the reply and send another transaction
+                // here and the space used by this transaction won't
+                // be freed for the client.
+                buffer.setDataSize(0);
 
                 constexpr uint32_t kForwardReplyFlags = TF_CLEAR_BUF;
                 sendReply(reply, (tr.flags & kForwardReplyFlags));
